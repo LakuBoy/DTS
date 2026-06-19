@@ -1,44 +1,47 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import pool from './config/db';
+import sequelize from './config/db';
+import { initAssociations } from './models/associations';
 
-// Import routers explicitly
 import authRoutes from './routes/auth.routes';
-import ticketRoutes from './routes/ticket.routes';
 import companyRoutes from './routes/company.routes';
+import ticketRoutes from './routes/ticket.routes';
 
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json());
 
-// Attach Sub-Routers
+// Initialize ORM DB Model Relationships
+initAssociations();
+
+// Active Endpoint Routers Mapping
 app.use('/api/auth', authRoutes);
+app.use('/api/companies', companyRoutes);
 app.use('/api/tickets', ticketRoutes);
-app.use('/api/company', companyRoutes);
 
-app.get('/health', (req, res) => {
-  res.json({ status: 'healthy', database: 'connected', serverTime: new Date() });
-});
-
-// --- DATABASE CONNECTION TEST ---
-const testDbConnection = async () => {
+const bootstrapApplication = async () => {
   try {
-    // Run a simple primitive query to see if the database responds
-    const res = await pool.query('SELECT NOW()');
-    console.log(`✅ Database connected successfully! Server time: ${res.rows[0].now}`);
-  } catch (err) {
-    console.error('❌ Database connection failed!');
-    console.error(err);
-    process.exit(1); // Kill the server if the database isn't working
+    // Authenticate and synchronize model states with PostgreSQL safely
+    await sequelize.authenticate();
+    console.log('✅ Sequelize successfully connected to the PostgreSQL instance!');
+    
+    // sync() will ensure the schema matches without erasing existing database setups
+    await sequelize.sync();
+    console.log('✅ All DB models successfully synchronized with database engine.');
+
+    app.listen(PORT, () => {
+      console.log(`🚀 Dugu Core ORM API running on service port allocation: ${PORT}`);
+    });
+  } catch (error) {
+    console.error('❌ Failed to safely initialize application engine dependencies:');
+    console.error(error);
+    process.exit(1);
   }
 };
 
-app.listen(PORT, async () => {
-  console.log('Dugu Ticketing listening safely.');
-  await testDbConnection(); // Test the database connection when the server starts
-});
+bootstrapApplication();

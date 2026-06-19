@@ -37,13 +37,13 @@ SQL
 CREATE DATABASE dugu_ticketing_system;
 
 3. Clone and Install Dependencies
-Navigate into your backend folder and install the required modules:
+Navigate into your server folder and install the required modules:
 Bash
-cd backend
+cd server
 npm install
 
 4. Configure Environment Variables
-Create a .env file inside the root of the backend/ directory and populate it with your local credentials:
+Create a .env file inside the root of the server/ directory and populate it with your local credentials:
 
 Code snippet
 PORT=5000
@@ -65,6 +65,6 @@ Run the local application server with automated live-reloads enabled via ts-node
 Bash
 npm run dev
 The console will verify connection details:
-Dugu listening safely on port 5000
+Dugu listening safely
 ✅ Database connected successfully!
 

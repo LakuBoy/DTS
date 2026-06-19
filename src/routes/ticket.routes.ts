@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { getCompanyTickets, createTicket, updateTicketField, softDeleteTicket, getTicketAuditTrail } from '../controllers/ticket.controller';
+import { createTicket, updateTicketField, softDeleteTicket } from '../controllers/ticket/ticket.mutations';
+import { getCompanyTickets, getTicketAuditTrail } from '../controllers/ticket/ticket.queries';
 import { authenticateToken } from '../middleware/auth.middleware';
 
 const router = Router();

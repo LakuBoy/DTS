@@ -1,0 +1,1 @@
+export type UserRole = 'super_admin' | 'client_admin' | 'client' | 'client_receivers_admin' | 'client_receivers';

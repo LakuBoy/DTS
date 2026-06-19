@@ -1,18 +1,22 @@
-import { Pool } from 'pg';
+import { Sequelize } from 'sequelize';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
-const pool = new Pool({
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_NAME,
-  password: process.env.DB_PASSWORD,
-  port: Number(process.env.DB_PORT) || 5432,
-});
+const sequelize = new Sequelize(
+  process.env.DB_NAME as string,
+  process.env.DB_USER as string,
+  process.env.DB_PASSWORD as string,
+  {
+    host: process.env.DB_HOST,
+    port: parseInt(process.env.DB_PORT as string, 10),
+    dialect: 'postgres',
+    logging: false, // Set to console.log to see raw SQL queries
+    define: {
+      timestamps: true, // Automatically handles created_at and updated_at
+      underscored: true, // Matches your snake_case database columns
+    },
+  }
+);
 
-export const query = (text: string, params?: any[]) => {
-  return pool.query(text, params);
-};
-
-export default pool;
+export default sequelize;
