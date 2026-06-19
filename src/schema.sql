@@ -1,107 +1,76 @@
--- 1. DEFINE ROLES ENUM
+-- Enable UUID extension if not already enabled
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- Define the Role Enum 
 CREATE TYPE user_role AS ENUM (
     'super_admin', 
-    'admin', 
+    'client_admin', 
     'client', 
-    'client_receiver', 
-    'client_receiver_admin'
+    'client_receivers_admin', 
+    'client_receivers'
 );
 
--- 2. TENANTS / COMPANIES TABLE
+-- Company Table
 CREATE TABLE companies (
-    company_id UUID PRIMARY KEY DEFAULT gen_random_uuid(), 
-    company_name VARCHAR(100) NOT NULL,
-    account_status VARCHAR(20) DEFAULT 'active', 
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(255) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3. USERS TABLE
+-- Users Table 
 CREATE TABLE users (
-    user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    company_id UUID REFERENCES companies(company_id) ON DELETE SET NULL, 
-    first_name VARCHAR(50) NOT NULL,
-    last_name VARCHAR(50) NOT NULL,
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    first_name VARCHAR(100) NOT NULL,
+    last_name VARCHAR(100) NOT NULL,
     email VARCHAR(100) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL, 
-    role user_role NOT NULL,
-    is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    password_hash VARCHAR(255) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ
 );
 
--- 4. CUSTOMERS TABLE (The people calling into the system)
-CREATE TABLE customers (
-    customer_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    company_id UUID REFERENCES companies(company_id) ON DELETE CASCADE, 
-    first_name VARCHAR(50),
-    last_name VARCHAR(50),
-    phone_number VARCHAR(20) NOT NULL,
-    email VARCHAR(100),
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT unique_customer_per_company UNIQUE (company_id, phone_number)
-);
-
--- 5. TICKETS TABLE
+-- Ticket Table
 CREATE TABLE tickets (
-    ticket_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    company_id UUID REFERENCES companies(company_id) ON DELETE CASCADE,
-    customer_id UUID REFERENCES customers(customer_id) ON DELETE SET NULL,
-    assigned_to UUID REFERENCES users(user_id) ON DELETE SET NULL,
-    subject VARCHAR(255) NOT NULL,
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    creator_id UUID NOT NULL REFERENCES users(id),
+    assignee_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    title VARCHAR(255) NOT NULL,
     description TEXT,
-    status VARCHAR(20) DEFAULT 'open', 
-    priority VARCHAR(20) DEFAULT 'medium', 
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    status VARCHAR(50) DEFAULT 'open',
+    priority VARCHAR(20) DEFAULT 'medium',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ
 );
 
--- 6. CALLS TABLE (Tracks metadata for every single call event)
-CREATE TABLE calls (
-    call_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    company_id UUID REFERENCES companies(company_id) ON DELETE CASCADE,
-    customer_id UUID REFERENCES customers(customer_id) ON DELETE SET NULL,
-    agent_id UUID REFERENCES users(user_id) ON DELETE SET NULL,
-    ticket_id UUID REFERENCES tickets(ticket_id) ON DELETE SET NULL,
-    call_direction VARCHAR(10) NOT NULL, 
-    call_status VARCHAR(20) NOT NULL,    
-    duration_seconds INT DEFAULT 0,
-    recording_url TEXT,                  
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+-- Link user with company 
+CREATE TABLE user_company_roles (
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
+    role user_role NOT NULL,
+    PRIMARY KEY (user_id, company_id)
 );
 
--- 7. TICKET UPDATES / HISTORY TABLE (For live feeds and auditing)
-CREATE TABLE ticket_updates (
-    update_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    ticket_id UUID REFERENCES tickets(ticket_id) ON DELETE CASCADE,
-    author_id UUID REFERENCES users(user_id) ON DELETE SET NULL,
-    update_type VARCHAR(20) NOT NULL,    
-    note_text TEXT,
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+-- Statuses table (Company-specific workflows)
+CREATE TABLE ticket_statuses (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
+    name VARCHAR(50) NOT NULL,
+    sort_order INT DEFAULT 0
 );
 
--- -----------------------------------------------------------------
--- PERFORMANCE INDEXES
--- -----------------------------------------------------------------
-CREATE INDEX idx_users_company ON users(company_id);
-CREATE INDEX idx_customers_phone_company ON customers(company_id, phone_number);
-CREATE INDEX idx_tickets_company_status ON tickets(company_id, status);
-CREATE INDEX idx_tickets_assigned ON tickets(assigned_to);
-CREATE INDEX idx_calls_company ON calls(company_id);
+-- Ticket History (The Audit Log)
+CREATE TABLE ticket_events (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    ticket_id UUID REFERENCES tickets(id) ON DELETE CASCADE,
+    changed_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    field_changed VARCHAR(50) NOT NULL,
+    old_value TEXT,
+    new_value TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
 
--- -----------------------------------------------------------------
--- AUTOMATION: AUTOMATICALLY UPDATE TIMESTAMPS
--- -----------------------------------------------------------------
-CREATE OR REPLACE FUNCTION update_modified_column()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = NOW();
-    RETURN NEW;
-END;
-$$ LANGUAGE 'plpgsql';
-
-CREATE TRIGGER update_companies_modtime BEFORE UPDATE ON companies FOR EACH ROW EXECUTE PROCEDURE update_modified_column();
-CREATE TRIGGER update_users_modtime BEFORE UPDATE ON users FOR EACH ROW EXECUTE PROCEDURE update_modified_column();
-CREATE TRIGGER update_customers_modtime BEFORE UPDATE ON customers FOR EACH ROW EXECUTE PROCEDURE update_modified_column();
-CREATE TRIGGER update_tickets_modtime BEFORE UPDATE ON tickets FOR EACH ROW EXECUTE PROCEDURE update_modified_column();
+-- This tells PostgreSQL to keep a pre-sorted lookup map for company tickets, which prevents performance slowdowns when your database reaches thousands of rows.
+CREATE INDEX idx_tickets_company_id ON tickets(company_id);

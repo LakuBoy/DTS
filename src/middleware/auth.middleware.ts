@@ -4,7 +4,7 @@ import { UserRole } from '../types';
 
 export interface AuthenticatedRequest extends Request {
   user?: {
-    user_id: string;
+    id: string;
     company_id: string | null;
     role: UserRole;
   };

@@ -6,8 +6,7 @@ import pool from './config/db';
 // Import routers explicitly
 import authRoutes from './routes/auth.routes';
 import ticketRoutes from './routes/ticket.routes';
-import customerRoutes from './routes/customer.routes';
-import callRoutes from './routes/call.routes';
+import companyRoutes from './routes/company.routes';
 
 dotenv.config();
 
@@ -20,8 +19,7 @@ app.use(express.json());
 // Attach Sub-Routers
 app.use('/api/auth', authRoutes);
 app.use('/api/tickets', ticketRoutes);
-app.use('/api/customers', customerRoutes);
-app.use('/api/calls', callRoutes);
+app.use('/api/company', companyRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'healthy', database: 'connected', serverTime: new Date() });
